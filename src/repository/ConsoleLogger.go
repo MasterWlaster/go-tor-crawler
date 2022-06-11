@@ -1,10 +1,13 @@
 package repository
 
+import "fmt"
+
 type ConsoleLogger struct {
 }
 
-func (c ConsoleLogger) Log(err error) {
-	//TODO implement me
-	panic("implement me")
+func (c *ConsoleLogger) Log(err error) {
+	if err == nil {
+		return
+	}
+	fmt.Printf("LOG ERROR: %s", err)
 }
-

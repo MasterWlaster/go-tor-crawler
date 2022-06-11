@@ -5,12 +5,27 @@ import (
 	"goognion/src/repository"
 )
 
-type TorCrawlerService struct {
+type CrawlerService struct {
 }
 
-func (s *TorCrawlerService) Crawl(url string, depth int) {
+func (s *CrawlerService) Crawl(url string, depth int) {
 	var err error = nil
 	defer repository.Logger.Log(err)
+
+	isValid, err := repository.UrlValidator.IsValid(url)
+	if err != nil || !isValid {
+		return
+	}
+
+	used, err := repository.Crawler.UsedUrl(url, depth)
+	if err != nil || used {
+		return
+	}
+
+	err = repository.Crawler.Remember(url)
+	if err != nil {
+		return
+	}
 
 	if depth--; depth < 0 {
 		return
@@ -22,11 +37,13 @@ func (s *TorCrawlerService) Crawl(url string, depth int) {
 	}
 
 	for _, u := range urls {
+		if u == url {
+			continue
+		}
 		go s.Crawl(u, depth)
 	}
-	indexes := map[string]int{}
 
-	err = repository.Crawler.DoIndexing(data, indexes)
+	indexes, err := repository.Crawler.DoIndexing(data)
 	if err != nil {
 		return
 	}
@@ -37,7 +54,7 @@ func (s *TorCrawlerService) Crawl(url string, depth int) {
 	}
 }
 
-func (s *TorCrawlerService) GetUncrawledUrls(maxDepth int) []string {
+func (s *CrawlerService) GetUncrawledUrls(maxDepth int) []string {
 	//todo
 	return nil
 }

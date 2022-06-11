@@ -12,13 +12,14 @@ type WindowsConsoleController struct {
 }
 
 func (c *WindowsConsoleController) Run() {
-	await.Wait()
-
 	src, depth := "", 0
+	fmt.Println("Ввод:\ndb [глубина индексирования]\nлибо\n[ссылка на страницу] [глубина индексирования]\n-----")
 	for {
+		await.Wait()
 		_, err := fmt.Scanln(&src, &depth)
 		if err != nil {
 			fmt.Println("Проверьте правильность ввода")
+			continue
 		}
 
 		switch src {
