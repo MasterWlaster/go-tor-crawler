@@ -8,13 +8,9 @@ import (
 type TorCrawlerService struct {
 }
 
-func NewTorCrawlerService(repository ICrawlerRepository) *TorCrawlerService {
-	return &TorCrawlerService{}
-}
-
 func (s *TorCrawlerService) Crawl(url string, depth int) {
 	var err error = nil
-	defer Logger.Log(err)
+	defer repository.Logger.Log(err)
 
 	if depth--; depth < 0 {
 		return

@@ -1,10 +1,9 @@
 package repository
 
-import "goognion/src/service"
+var Crawler ICrawlerRepository
+var Logger ILoggerRepository
 
-var Crawler service.ICrawlerRepository
-var Logger service.ILoggerRepository
-
-func InitRepositories(crawler service.ICrawlerRepository) {
+func Init(crawler ICrawlerRepository, logger ILoggerRepository) {
 	Crawler = crawler
+	Logger = logger
 }

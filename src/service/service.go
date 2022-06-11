@@ -1,9 +1,7 @@
 package service
 
 var Crawler ICrawlerService
-var Logger ILoggerService
 
-func Init(crawler ICrawlerService, logger ILoggerService) {
+func Init(crawler ICrawlerService) {
 	Crawler = crawler
-	Logger = logger
 }
