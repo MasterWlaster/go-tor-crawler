@@ -1,5 +1,7 @@
 package repository
 
+import "regexp"
+
 type TorUrlValidator struct {
 }
 
@@ -8,6 +10,5 @@ func NewTorUrlValidator() *TorUrlValidator {
 }
 
 func (t TorUrlValidator) IsValid(url string) (bool, error) {
-	//TODO implement me
-	panic("implement me")
+	return regexp.MatchString(`.*\.onion`, url)
 }
