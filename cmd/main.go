@@ -7,16 +7,11 @@ import (
 )
 
 func main() {
-	repository.Init(
-		&repository.TorCrawlerRepository{},
-		&repository.ConsoleLogger{},
-		&repository.TorUrlValidator{})
-	service.Init(
-		&service.CrawlerService{})
-	controller.Init(
-		&controller.WindowsConsoleController{})
+	r := repository.NewTorRepository()
+	s := service.NewService(r)
+	c := controller.NewConsoleController(s)
 
-	controller.Controller.Run()
+	c.Run()
 
 	//todo shutdown
 }

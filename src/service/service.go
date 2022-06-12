@@ -1,7 +1,17 @@
 package service
 
-var Crawler ICrawlerService
+import "goognion/src/repository"
 
-func Init(crawler ICrawlerService) {
-	Crawler = crawler
+type Service struct {
+	Crawler ICrawlerService
+}
+
+func NewService(repository *repository.Repository) *Service {
+	return &Service{
+		Crawler: NewCrawlerService(repository)}
+}
+
+type ICrawlerService interface {
+	Crawl(url string, depth int)
+	GetUncrawledUrls(maxDepth int) []string
 }

@@ -6,23 +6,28 @@ import (
 )
 
 type CrawlerService struct {
+	repository repository.Repository
+}
+
+func NewCrawlerService(repository *repository.Repository) *CrawlerService {
+	return &CrawlerService{repository: *repository}
 }
 
 func (s *CrawlerService) Crawl(url string, depth int) {
 	var err error = nil
-	defer repository.Logger.Log(err)
+	defer s.repository.Logger.Log(err)
 
-	isValid, err := repository.UrlValidator.IsValid(url)
+	isValid, err := s.repository.UrlValidator.IsValid(url)
 	if err != nil || !isValid {
 		return
 	}
 
-	used, err := repository.Crawler.UsedUrl(url, depth)
+	used, err := s.repository.Crawler.UsedUrl(url, depth)
 	if err != nil || used {
 		return
 	}
 
-	err = repository.Crawler.Remember(url)
+	err = s.repository.Crawler.Remember(url)
 	if err != nil {
 		return
 	}
@@ -31,7 +36,7 @@ func (s *CrawlerService) Crawl(url string, depth int) {
 		return
 	}
 
-	data, urls, err := repository.Crawler.Load(url)
+	data, urls, err := s.repository.Crawler.Load(url)
 	if err != nil {
 		return
 	}
@@ -43,12 +48,12 @@ func (s *CrawlerService) Crawl(url string, depth int) {
 		go s.Crawl(u, depth)
 	}
 
-	indexes, err := repository.Crawler.DoIndexing(data)
+	indexes, err := s.repository.Crawler.DoIndexing(data)
 	if err != nil {
 		return
 	}
 
-	err = repository.Crawler.Save(src.Page{Url: url, Indexes: indexes})
+	err = s.repository.Crawler.Save(src.Page{Url: url, Indexes: indexes})
 	if err != nil {
 		return
 	}

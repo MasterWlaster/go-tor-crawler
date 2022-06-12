@@ -7,6 +7,10 @@ import (
 type TorCrawlerRepository struct {
 }
 
+func NewTorCrawlerRepository() *TorCrawlerRepository {
+	return &TorCrawlerRepository{}
+}
+
 func (t *TorCrawlerRepository) Remember(url string) error {
 	//TODO implement me
 	panic("implement me")
