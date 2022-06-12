@@ -22,12 +22,12 @@ func (s *CrawlerService) Crawl(url string, depth int) {
 		return
 	}
 
-	used, err := s.repository.Crawler.UsedUrl(url, depth)
+	used, err := s.repository.Memory.UsedUrl(url, depth)
 	if err != nil || used {
 		return
 	}
 
-	err = s.repository.Crawler.Remember(url)
+	err = s.repository.Memory.Remember(url)
 	if err != nil {
 		return
 	}
@@ -53,7 +53,7 @@ func (s *CrawlerService) Crawl(url string, depth int) {
 		return
 	}
 
-	err = s.repository.Crawler.Save(src.Page{Url: url, Indexes: indexes})
+	err = s.repository.Memory.Save(src.Page{Url: url, Indexes: indexes})
 	if err != nil {
 		return
 	}

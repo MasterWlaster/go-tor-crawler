@@ -6,17 +6,15 @@ type Repository struct {
 	Crawler      ICrawlerRepository
 	Logger       ILoggerRepository
 	UrlValidator IUrlValidator
-}
-
-func NewRepository(crawler ICrawlerRepository, logger ILoggerRepository, urlValidator IUrlValidator) *Repository {
-	return &Repository{Crawler: crawler, Logger: logger, UrlValidator: urlValidator}
+	Memory       IMemoryRepository
 }
 
 func NewTorRepository() *Repository {
 	return &Repository{
 		Crawler:      NewTorCrawlerRepository(),
 		Logger:       NewConsoleLogger(),
-		UrlValidator: NewTorUrlValidator()}
+		UrlValidator: NewTorUrlValidator(),
+		Memory:       NewPostgresDb()}
 }
 
 type IUrlValidator interface {
@@ -24,13 +22,16 @@ type IUrlValidator interface {
 }
 
 type ICrawlerRepository interface {
-	Save(page src.Page) error
 	Load(url string) ([]src.Text, []string, error)
 	DoIndexing(src []src.Text) (map[string]int, error)
-	UsedUrl(url string, depth int) (bool, error)
+}
+
+type IMemoryRepository interface {
+	Save(page src.Page) error
 	Remember(url string) error
+	UsedUrl(url string, depth int) (bool, error)
 }
 
 type ILoggerRepository interface {
-	Log(err error) // error
+	Log(err error)
 }
