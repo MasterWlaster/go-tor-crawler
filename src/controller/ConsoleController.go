@@ -30,28 +30,28 @@ func (c *ConsoleController) Run() {
 
 		switch src {
 		case "db":
-			urls := c.getNotCrawledUrls(depth)
+			urls := c.getNotCrawledUrls()
 			if urls == nil {
 				fmt.Println("В БД не удалось обнаружить непроиндексированных страниц")
+				continue
 			}
 
 			c.await.Add(len(urls))
 			for _, url := range urls {
-				go c.crawl(url, depth, c.await)
+				go c.crawl(url, depth)
 			}
 		default:
 			c.await.Add(1)
-			go c.crawl(src, depth, c.await)
+			go c.crawl(src, depth)
 		}
 	}
 }
 
-func (c *ConsoleController) crawl(url string, depth int, await *sync.WaitGroup) {
+func (c *ConsoleController) crawl(url string, depth int) {
 	c.service.Crawler.Crawl(url, depth)
-	await.Done()
+	c.await.Done()
 }
 
-func (c *ConsoleController) getNotCrawledUrls(maxDepth int) []string {
-	//todo
-	return nil
+func (c *ConsoleController) getNotCrawledUrls() []string {
+	return c.service.Crawler.GetNotCrawledUrls()
 }

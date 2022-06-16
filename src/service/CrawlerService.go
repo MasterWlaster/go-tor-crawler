@@ -22,7 +22,7 @@ func (s *CrawlerService) Crawl(url string, depth int) {
 		return
 	}
 
-	used, err := s.repository.Memory.UsedUrl(url, depth)
+	used, err := s.repository.Memory.UsedUrl(url)
 	if err != nil || used {
 		return
 	}
@@ -59,7 +59,14 @@ func (s *CrawlerService) Crawl(url string, depth int) {
 	}
 }
 
-func (s *CrawlerService) GetUncrawledUrls(maxDepth int) []string {
-	//todo
-	return nil
+func (s *CrawlerService) GetNotCrawledUrls() []string {
+	var err error = nil
+	defer s.repository.Logger.Log(err)
+
+	urls, err := s.repository.Memory.GetUnusedUrls()
+	if err != nil {
+		return nil
+	}
+
+	return urls
 }

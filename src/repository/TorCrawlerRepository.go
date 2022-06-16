@@ -25,25 +25,21 @@ func (r *TorCrawlerRepository) Load(url string) ([]src.Text, []string, error) {
 	}
 	defer t.Close()
 
-	// Wait at most a minute to start network and get
 	dialCtx, dialCancel := context.WithTimeout(context.Background(), time.Minute)
 	defer dialCancel()
 
-	// Make connection
 	dialer, err := t.Dialer(dialCtx, nil)
 	if err != nil {
 		return nil, nil, err
 	}
 	httpClient := &http.Client{Transport: &http.Transport{DialContext: dialer.DialContext}}
 
-	// Get /
 	resp, err := httpClient.Get(url)
 	if err != nil {
 		return nil, nil, err
 	}
 	defer resp.Body.Close()
 
-	// Grab the <title>
 	parsed, err := html.Parse(resp.Body)
 	if err != nil {
 		return nil, nil, err
@@ -66,8 +62,8 @@ func (r *TorCrawlerRepository) DoIndexing(source []src.Text) (map[string]int, er
 		}
 		out[p.string] = v + p.int
 	}
-
-	return out, nil //todo handle errors
+	//todo handle errors
+	return out, nil
 }
 
 func getTextsAndUrls(n *html.Node, texts []src.Text, urls []string) ([]src.Text, []string) {

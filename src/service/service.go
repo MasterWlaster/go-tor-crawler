@@ -13,5 +13,5 @@ func NewService(repository *repository.Repository) *Service {
 
 type ICrawlerService interface {
 	Crawl(url string, depth int)
-	GetUncrawledUrls(maxDepth int) []string
+	GetNotCrawledUrls() []string
 }
