@@ -10,5 +10,5 @@ func NewTorUrlValidator() *TorUrlValidator {
 }
 
 func (t TorUrlValidator) IsValid(url string) (bool, error) {
-	return regexp.MatchString(`.*\.onion`, url)
+	return regexp.MatchString(`http(s?)://(.+)\.onion((/(.+))*)((/(.*))?)`, url)
 }

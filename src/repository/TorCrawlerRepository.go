@@ -7,76 +7,134 @@ import (
 	"golang.org/x/net/html"
 	"goognion/src"
 	"net/http"
+	"regexp"
+	"strings"
 	"sync"
-	"time"
 )
 
 type TorCrawlerRepository struct {
+	client *http.Client
 }
 
 func NewTorCrawlerRepository() *TorCrawlerRepository {
-	return &TorCrawlerRepository{}
+	//todo path to main, mb like db
+	c, err := newTorClient("D:/Tor Browser/Browser/TorBrowser/Tor/tor.exe")
+	if err != nil {
+		panic(err)
+	}
+
+	return &TorCrawlerRepository{client: c}
 }
 
-func (r *TorCrawlerRepository) Load(url string) ([]src.Text, []string, error) {
-	t, err := tor.Start(nil, nil)
+func newTorClient(torPath string) (*http.Client, error) {
+	t, err := tor.Start(nil, &tor.StartConf{ExePath: torPath})
+	if err != nil {
+		return nil, err
+	}
+	//todo fmt
+	dialer, err := t.Dialer(context.Background(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return &http.Client{Transport: &http.Transport{DialContext: dialer.DialContext}}, nil
+}
+
+func (r *TorCrawlerRepository) DoIndexing(input <-chan src.Text) (map[string]int, error) {
+	out := make(chan string)
+
+	go func() {
+		wg := sync.WaitGroup{}
+
+		for text := range input {
+			wg.Add(1)
+
+			go func(t src.Text, wg *sync.WaitGroup) {
+				ws := strings.Split(string(t), " ")
+
+				for _, w := range ws {
+					wg.Add(1)
+
+					go func(w string, wg *sync.WaitGroup) {
+						w = strings.Trim(w, " \n\t\r") //cutset .?&^%#$;: not cutset \t
+						match, err := regexp.MatchString(`.+`, w)
+						if !match || err != nil {
+							return
+						}
+						out <- w
+						wg.Done()
+					}(w, wg)
+				}
+
+				wg.Done()
+			}(text, &wg)
+		}
+
+		wg.Wait()
+		close(out)
+	}()
+
+	m := map[string]int{}
+
+	for word := range out {
+		m[word] += 1
+	}
+
+	return m, nil
+}
+
+func (r *TorCrawlerRepository) Load(url string) (<-chan src.Text, <-chan string, error) {
+	resp, err := r.client.Get(url)
 	if err != nil {
 		return nil, nil, err
 	}
-	defer t.Close()
-
-	dialCtx, dialCancel := context.WithTimeout(context.Background(), time.Minute)
-	defer dialCancel()
-
-	dialer, err := t.Dialer(dialCtx, nil)
-	if err != nil {
-		return nil, nil, err
-	}
-	httpClient := &http.Client{Transport: &http.Transport{DialContext: dialer.DialContext}}
-
-	resp, err := httpClient.Get(url)
-	if err != nil {
-		return nil, nil, err
-	}
-	defer resp.Body.Close()
+	//defer resp.Body.Close() todo
 
 	parsed, err := html.Parse(resp.Body)
 	if err != nil {
 		return nil, nil, err
 	}
 
-	texts, urls := getTextsAndUrls(parsed, []src.Text{}, []string{})
+	outT := make(chan src.Text)
+	outU := make(chan string)
 
-	return texts, urls, nil
+	go func() {
+		wg := sync.WaitGroup{}
+
+		wg.Add(1)
+		getTextsAndUrls(parsed, outT, outU, &wg)
+
+		wg.Wait()
+		close(outT)
+		close(outU)
+	}()
+
+	return outT, outU, nil
 }
 
-func (r *TorCrawlerRepository) DoIndexing(source []src.Text) (map[string]int, error) {
-	out := map[string]int{}
-
-	for p := range doIndexing(source) {
-		v, ok := out[p.string]
-
-		if !ok {
-			out[p.string] = v
-			continue
-		}
-		out[p.string] = v + p.int
+func getTextsAndUrls(n *html.Node, text chan<- src.Text, url chan<- string, wg *sync.WaitGroup) {
+	for c := n.FirstChild; c != nil; c = c.NextSibling {
+		wg.Add(1)
+		go func(n *html.Node, wg *sync.WaitGroup) {
+			getTextsAndUrls(n, text, url, wg)
+		}(c, wg)
 	}
-	//todo handle errors
-	return out, nil
-}
 
-func getTextsAndUrls(n *html.Node, texts []src.Text, urls []string) ([]src.Text, []string) {
 	if n.Type == html.ElementNode {
 		switch n.Data {
 		case "a":
 			for _, a := range n.Attr {
 				if a.Key == "href" {
-					urls = append(urls, a.Val)
+					url <- a.Val
 					break
 				}
 			}
+			fallthrough
 		case "div":
+			fallthrough
+		case "label":
+			fallthrough
+		case "button":
 			fallthrough
 		case "p":
 			fallthrough
@@ -91,46 +149,16 @@ func getTextsAndUrls(n *html.Node, texts []src.Text, urls []string) ([]src.Text,
 		case "h5":
 			fallthrough
 		case "h6":
-			var text bytes.Buffer
-			if err := html.Render(&text, n.FirstChild); err != nil {
-				panic(err) //todo remove panic
+			var t bytes.Buffer
+			if n == nil || n.FirstChild == nil {
+				break
 			}
-			texts = append(texts, (src.Text)(text.String()))
+			if err := html.Render(&t, n.FirstChild); err != nil {
+				break
+			}
+			text <- (src.Text)(t.String())
 		}
 	}
-	for c := n.FirstChild; c != nil; c = c.NextSibling {
-		getTextsAndUrls(c, texts, urls)
-	}
 
-	return texts, urls
-}
-
-type pair struct {
-	string
-	int
-}
-
-func doIndexing(source []src.Text) <-chan pair {
-	out := make(chan pair, len(source))
-
-	go func() {
-		wg := sync.WaitGroup{}
-		wg.Add(len(source))
-
-		for _, v := range source {
-			go func(t src.Text) {
-				out <- index(t)
-				wg.Done()
-			}(v)
-		}
-
-		wg.Wait()
-		close(out)
-	}()
-
-	return out
-}
-
-func index(text src.Text) pair {
-	return pair{} //todo index
+	wg.Done()
 }

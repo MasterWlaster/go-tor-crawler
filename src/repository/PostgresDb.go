@@ -56,7 +56,7 @@ func (p *PostgresDb) Save(page src.Page) error {
 }
 
 func (p *PostgresDb) Remember(url string) error {
-	query := fmt.Sprintf(`INSERT INTO %s VALUES ($1)`, urls)
+	query := fmt.Sprintf(`INSERT INTO %s VALUES ($1) ON CONFLICT DO NOTHING`, urls)
 	_, err := p.db.Exec(query, url)
 
 	return err

@@ -21,9 +21,9 @@ func NewTorRepository(db *sqlx.DB) *Repository {
 		Memory:       NewPostgresDb(db)}
 }
 
-func ConnectPostgres(host, port, username, password, dbName string) (*sqlx.DB, error) {
+func ConnectPostgres(host, port, username, password, dbName, sslMode string) (*sqlx.DB, error) {
 	db, err := sqlx.Open("postgres", fmt.Sprintf("host=%s port=%s user=%s dbname=%s password=%s sslmode=%s",
-		host, port, username, dbName, password))
+		host, port, username, dbName, password, sslMode))
 	if err != nil {
 		return nil, err
 	}
@@ -41,8 +41,8 @@ type IUrlValidator interface {
 }
 
 type ICrawlerRepository interface {
-	Load(url string) ([]src.Text, []string, error)
-	DoIndexing(src []src.Text) (map[string]int, error)
+	Load(url string) (<-chan src.Text, <-chan string, error)
+	DoIndexing(input <-chan src.Text) (map[string]int, error)
 }
 
 type IMemoryRepository interface {

@@ -41,12 +41,14 @@ func (s *CrawlerService) Crawl(url string, depth int) {
 		return
 	}
 
-	for _, u := range urls {
-		if u == url {
-			continue
+	go func() {
+		for u := range urls {
+			if u == url {
+				continue
+			}
+			go s.Crawl(u, depth)
 		}
-		go s.Crawl(u, depth)
-	}
+	}()
 
 	indexes, err := s.repository.Crawler.DoIndexing(data)
 	if err != nil {

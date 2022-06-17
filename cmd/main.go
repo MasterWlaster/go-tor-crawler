@@ -8,7 +8,13 @@ import (
 )
 
 func main() {
-	db, err := repository.ConnectPostgres("", "", "", "", "")
+	db, err := repository.ConnectPostgres(
+		"localhost",
+		"5432",
+		"postgres",
+		"postgres",
+		"go_crawler",
+		"disable")
 	if err != nil {
 		panic(err)
 	}
