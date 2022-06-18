@@ -1,6 +1,7 @@
 package repository
 
 import (
+	"errors"
 	"fmt"
 	"github.com/jmoiron/sqlx"
 	"goognion/src"
@@ -22,6 +23,10 @@ func NewPostgresDb(db *sqlx.DB) *PostgresDb {
 }
 
 func (p *PostgresDb) Save(page src.Page) error {
+	if len(page.Indexes) == 0 {
+		return errors.New("empty indexes")
+	}
+
 	wordsB := strings.Builder{}
 	indexesB := strings.Builder{}
 
@@ -37,13 +42,13 @@ func (p *PostgresDb) Save(page src.Page) error {
 		ii++
 	}
 
-	w := wordsB.String()
-	w = w[:len(w)-1]
+	wb := wordsB.String()
+	wb = wb[:len(wb)-1]
 
 	i := indexesB.String()
 	i = i[:len(i)-1]
 
-	wordsQ := fmt.Sprintf(`INSERT INTO %s VALUES %s ON CONFLICT DO NOTHING`, words, w)
+	wordsQ := fmt.Sprintf(`INSERT INTO %s VALUES %s ON CONFLICT DO NOTHING`, words, wb)
 	_, err := p.db.Exec(wordsQ, ws[1:]...)
 	if err != nil {
 		return err

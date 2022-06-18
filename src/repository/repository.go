@@ -2,8 +2,10 @@ package repository
 
 import (
 	"fmt"
+	"github.com/cretz/bine/tor"
 	"github.com/jmoiron/sqlx"
 	"goognion/src"
+	"net/http"
 )
 
 type Repository struct {
@@ -13,9 +15,9 @@ type Repository struct {
 	Memory       IMemoryRepository
 }
 
-func NewTorRepository(db *sqlx.DB) *Repository {
+func NewTorRepository(db *sqlx.DB, client *http.Client, tor *tor.Tor) *Repository {
 	return &Repository{
-		Crawler:      NewTorCrawlerRepository(),
+		Crawler:      NewTorCrawlerRepository(client, tor),
 		Logger:       NewConsoleLogger(),
 		UrlValidator: NewTorUrlValidator(),
 		Memory:       NewPostgresDb(db)}
