@@ -1,9 +1,10 @@
 package service
 
 import (
-	"errors"
+	"fmt"
 	"goognion/src"
 	"goognion/src/repository"
+	"sync"
 )
 
 type CrawlerService struct {
@@ -14,14 +15,14 @@ func NewCrawlerService(repository *repository.Repository) *CrawlerService {
 	return &CrawlerService{repository: *repository}
 }
 
-func (s *CrawlerService) Crawl(url string, depth int) { //todo logging
+func (s *CrawlerService) Crawl(url string, depth int) {
 	isValid, err := s.repository.UrlValidator.IsValid(url)
 	if err != nil {
 		s.repository.Logger.Log(err)
 		return
 	}
 	if !isValid {
-		s.repository.Logger.Log(errors.New("url is invalid"))
+		s.repository.Logger.Log(fmt.Errorf("invalid url: %s", url))
 		return
 	}
 
@@ -31,7 +32,7 @@ func (s *CrawlerService) Crawl(url string, depth int) { //todo logging
 		return
 	}
 	if used {
-		s.repository.Logger.Log(errors.New("url is used"))
+		s.repository.Logger.Log(fmt.Errorf("already used url: %s", url))
 		return
 	}
 
@@ -51,21 +52,29 @@ func (s *CrawlerService) Crawl(url string, depth int) { //todo logging
 		return
 	}
 
-	//wg := sync.WaitGroup{}
-	//wg.Add(len(urls))
+	wg := sync.WaitGroup{}
+	wg.Add(1)
 	go func() {
 		for u := range urls {
+			wg.Add(1)
 			if u == url {
-				//wg.Done()
+				wg.Done()
 				continue
 			}
-			//todo relative path
+			u, err = s.repository.UrlValidator.Relative(u, url)
+			if err != nil {
+				wg.Done()
+				continue
+			}
 			go func(u string) {
 				s.Crawl(u, depth)
-				//wg.Done()
+				wg.Done()
 			}(u)
 		}
+		wg.Done()
 	}()
+
+	defer wg.Wait()
 
 	indexes, err := s.repository.Crawler.DoIndexing(data)
 	if err != nil {
@@ -78,8 +87,6 @@ func (s *CrawlerService) Crawl(url string, depth int) { //todo logging
 		s.repository.Logger.Log(err)
 		return
 	}
-
-	//wg.Wait()
 }
 
 func (s *CrawlerService) GetNotCrawledUrls() []string {

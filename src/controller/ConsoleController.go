@@ -19,9 +19,10 @@ func NewConsoleController(service *service.Service) *ConsoleController {
 
 func (c *ConsoleController) Run() {
 	src, depth := "", 0
-	fmt.Println("\nВвод:\ndb [глубина индексирования]\nлибо\n[ссылка на страницу] [глубина индексирования]\n-----")
+	fmt.Println("\nИспользование:\ndb [глубина индексирования] - начало работы с непроиндексированными страницами\nлибо\n[ссылка на страницу] [глубина индексирования]")
 	for {
 		c.await.Wait()
+		fmt.Println("\nВвод:")
 		_, err := fmt.Scanln(&src, &depth)
 		if err != nil {
 			fmt.Println("Проверьте правильность ввода!")
@@ -44,12 +45,14 @@ func (c *ConsoleController) Run() {
 			c.await.Add(1)
 			go c.crawl(src, depth)
 		}
+		fmt.Println("Работаю...")
 	}
 }
 
 func (c *ConsoleController) crawl(url string, depth int) {
 	c.service.Crawler.Crawl(url, depth)
 	c.await.Done()
+	fmt.Println("Выполнено!")
 }
 
 func (c *ConsoleController) getNotCrawledUrls() []string {

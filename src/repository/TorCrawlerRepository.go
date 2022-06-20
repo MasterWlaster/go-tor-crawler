@@ -3,6 +3,7 @@ package repository
 import (
 	"bytes"
 	"context"
+	"fmt"
 	"github.com/cretz/bine/tor"
 	"golang.org/x/net/html"
 	"goognion/src"
@@ -23,15 +24,19 @@ func NewTorCrawlerRepository(client *http.Client, tor *tor.Tor) *TorCrawlerRepos
 }
 
 func NewTorClient(torPath string, torDataDir string) (*http.Client, *tor.Tor, error) {
+	fmt.Println("Запуск Tor...")
+
 	t, err := tor.Start(nil, &tor.StartConf{ExePath: torPath})
 	if err != nil {
 		return nil, nil, err
 	}
-	//todo fmt
+
 	dialer, err := t.Dialer(context.Background(), nil)
 	if err != nil {
 		return nil, nil, err
 	}
+
+	fmt.Println("Tor успешно запущен!")
 
 	return &http.Client{Transport: &http.Transport{DialContext: dialer.DialContext}}, t, nil
 }
@@ -44,31 +49,7 @@ func (r *TorCrawlerRepository) DoIndexing(input <-chan src.Text) (map[string]int
 
 		for text := range input {
 			wg.Add(1)
-
-			go func(t src.Text, wg *sync.WaitGroup) {
-				defer wg.Done()
-
-				ws := strings.Split(string(t), " ")
-
-				for _, w := range ws {
-					wg.Add(1)
-
-					go func(w string, wg *sync.WaitGroup) {
-						defer wg.Done()
-
-						w = strings.TrimFunc(w, func(r rune) bool {
-							return unicode.IsPunct(r) || unicode.IsSpace(r) || unicode.IsSymbol(r)
-						})
-						w = strings.ToLower(w)
-						match, err := regexp.MatchString(`.+`, w)
-						if !match || err != nil {
-							return
-						}
-
-						out <- w
-					}(w, wg)
-				}
-			}(text, &wg)
+			go indexText(text, &wg, out)
 		}
 
 		wg.Wait()
@@ -85,19 +66,23 @@ func (r *TorCrawlerRepository) DoIndexing(input <-chan src.Text) (map[string]int
 }
 
 func (r *TorCrawlerRepository) Load(url string) (<-chan src.Text, <-chan string, error) {
+	outT := make(chan src.Text)
+	outU := make(chan string)
+
 	resp, err := r.client.Get(url)
 	if err != nil {
-		return nil, nil, err
+		close(outT)
+		close(outU)
+		return outT, outU, err
 	}
 	defer resp.Body.Close()
 
 	parsed, err := html.Parse(resp.Body)
 	if err != nil {
-		return nil, nil, err
+		close(outT)
+		close(outU)
+		return outT, outU, err
 	}
-
-	outT := make(chan src.Text)
-	outU := make(chan string)
 
 	go func() {
 		wg := sync.WaitGroup{}
@@ -106,7 +91,6 @@ func (r *TorCrawlerRepository) Load(url string) (<-chan src.Text, <-chan string,
 		go getTextsAndUrls(parsed, outT, outU, &wg)
 
 		wg.Wait()
-		//get(parsed, outT, outU)
 		close(outT)
 		close(outU)
 	}()
@@ -119,9 +103,7 @@ func getTextsAndUrls(n *html.Node, text chan<- src.Text, url chan<- string, wg *
 
 	for c := n.FirstChild; c != nil; c = c.NextSibling {
 		wg.Add(1)
-		go func(n *html.Node, wg *sync.WaitGroup) {
-			getTextsAndUrls(n, text, url, wg)
-		}(c, wg)
+		go getTextsAndUrls(c, text, url, wg)
 	}
 
 	if n.Type == html.ElementNode {
@@ -129,6 +111,7 @@ func getTextsAndUrls(n *html.Node, text chan<- src.Text, url chan<- string, wg *
 		case "a":
 			for _, a := range n.Attr {
 				if a.Key == "href" {
+					wg.Add(1)
 					go func() {
 						url <- a.Val
 						wg.Done()
@@ -136,8 +119,7 @@ func getTextsAndUrls(n *html.Node, text chan<- src.Text, url chan<- string, wg *
 					break
 				}
 			}
-			wg.Add(1)
-			//fallthrough
+			fallthrough
 		case "div":
 			fallthrough
 		case "label":
@@ -164,57 +146,39 @@ func getTextsAndUrls(n *html.Node, text chan<- src.Text, url chan<- string, wg *
 			if err := html.Render(&t, n.FirstChild); err != nil {
 				break
 			}
+			wg.Add(1)
 			go func() {
 				text <- (src.Text)(t.String())
 				wg.Done()
 			}()
-			wg.Add(1)
 		}
 	}
 }
 
-func get(n *html.Node, text chan<- src.Text, url chan<- string) {
-	for c := n.FirstChild; c != nil; c = c.NextSibling {
-		get(c, text, url)
+func indexText(t src.Text, wg *sync.WaitGroup, out chan<- string) {
+	defer wg.Done()
+
+	ws := strings.Split(string(t), " ")
+
+	for _, w := range ws {
+		wg.Add(1)
+		go indexWord(w, wg, out)
+	}
+}
+
+func indexWord(w string, wg *sync.WaitGroup, out chan<- string) {
+	defer wg.Done()
+
+	w = strings.TrimFunc(w, func(r rune) bool {
+		return unicode.IsPunct(r) ||
+			unicode.IsSpace(r) ||
+			unicode.IsSymbol(r)
+	})
+	w = strings.ToLower(w)
+	match, err := regexp.MatchString(`^[a-z0-9]+$`, w)
+	if !match || err != nil {
+		return
 	}
 
-	if n.Type == html.ElementNode {
-		switch n.Data {
-		case "a":
-			for _, a := range n.Attr {
-				if a.Key == "href" {
-					url <- a.Val
-					break
-				}
-			}
-			fallthrough
-		case "div":
-			fallthrough
-		case "label":
-			fallthrough
-		case "button":
-			fallthrough
-		case "p":
-			fallthrough
-		case "h1":
-			fallthrough
-		case "h2":
-			fallthrough
-		case "h3":
-			fallthrough
-		case "h4":
-			fallthrough
-		case "h5":
-			fallthrough
-		case "h6":
-			var t bytes.Buffer
-			if n == nil || n.FirstChild == nil {
-				break
-			}
-			if err := html.Render(&t, n.FirstChild); err != nil {
-				break
-			}
-			text <- (src.Text)(t.String())
-		}
-	}
+	out <- w
 }
