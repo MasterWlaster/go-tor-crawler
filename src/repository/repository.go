@@ -1,7 +1,6 @@
 package repository
 
 import (
-	"fmt"
 	"github.com/cretz/bine/tor"
 	"github.com/jmoiron/sqlx"
 	"goognion/src"
@@ -23,25 +22,6 @@ func NewTorRepository(db *sqlx.DB, client *http.Client, tor *tor.Tor) *Repositor
 		Memory:       NewPostgresDb(db)}
 }
 
-func ConnectPostgres(host, port, username, password, dbName, sslMode string) (*sqlx.DB, error) {
-	fmt.Println("Подключение к БД...")
-
-	db, err := sqlx.Open("postgres", fmt.Sprintf("host=%s port=%s user=%s dbname=%s password=%s sslmode=%s",
-		host, port, username, dbName, password, sslMode))
-	if err != nil {
-		return nil, err
-	}
-
-	err = db.Ping()
-	if err != nil {
-		return nil, err
-	}
-
-	fmt.Println("Успешно подключено!")
-
-	return db, nil
-}
-
 type IUrlValidator interface {
 	IsValid(url string) (bool, error)
 	Relative(relative string, url string) (string, error)
@@ -57,8 +37,23 @@ type IMemoryRepository interface {
 	Remember(url string) error
 	UsedUrl(url string) (bool, error)
 	GetUnusedUrls() ([]string, error)
+	GetUnusedUrlsWithLimit(limit int) ([]string, error)
 }
 
 type ILoggerRepository interface {
 	Log(err error)
+}
+
+type DbConfig struct {
+	Host     string
+	Port     string
+	Name     string
+	Username string
+	Password string
+	SslMode  string
+}
+
+type TorConfig struct {
+	ExePath string
+	DataDir string
 }

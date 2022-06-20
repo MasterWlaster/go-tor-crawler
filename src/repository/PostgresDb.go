@@ -1,7 +1,6 @@
 package repository
 
 import (
-	"errors"
 	"fmt"
 	"github.com/jmoiron/sqlx"
 	"goognion/src"
@@ -24,7 +23,7 @@ func NewPostgresDb(db *sqlx.DB) *PostgresDb {
 
 func (p *PostgresDb) Save(page src.Page) error {
 	if len(page.Indexes) == 0 {
-		return errors.New("empty indexes")
+		return fmt.Errorf("empty indexes: %s", page.Url)
 	}
 
 	wordsB := strings.Builder{}
@@ -83,4 +82,34 @@ func (p *PostgresDb) GetUnusedUrls() ([]string, error) {
 	err := p.db.Select(&urls, query)
 
 	return urls, err
+}
+
+func (p *PostgresDb) GetUnusedUrlsWithLimit(limit int) ([]string, error) {
+	query := fmt.Sprintf(
+		`SELECT value FROM %s WHERE value NOT IN (SELECT DISTINCT url FROM indexes) LIMIT %d`,
+		urls, limit)
+	var urls []string
+	err := p.db.Select(&urls, query)
+
+	return urls, err
+}
+
+func ConnectPostgres(c DbConfig) (*sqlx.DB, error) {
+	fmt.Println("Подключение к БД...")
+
+	db, err := sqlx.Open("postgres", fmt.Sprintf(
+		"host=%s port=%s user=%s dbname=%s password=%s sslmode=%s",
+		c.Host, c.Port, c.Username, c.Name, c.Password, c.SslMode))
+	if err != nil {
+		return nil, err
+	}
+
+	err = db.Ping()
+	if err != nil {
+		return nil, err
+	}
+
+	fmt.Println("Успешно подключено!")
+
+	return db, nil
 }

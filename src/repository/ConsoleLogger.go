@@ -10,8 +10,5 @@ func NewConsoleLogger() *ConsoleLogger {
 }
 
 func (c *ConsoleLogger) Log(err error) {
-	if err == nil {
-		return
-	}
-	fmt.Println(fmt.Sprintf("ERROR: %s", err))
+	fmt.Println(fmt.Sprintf("- ERROR: %s", err))
 }

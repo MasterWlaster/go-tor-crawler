@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	_ "github.com/lib/pq"
+	"github.com/spf13/viper"
 	"goognion/src/controller"
 	"goognion/src/repository"
 	"goognion/src/service"
@@ -15,17 +16,25 @@ import (
 func main() {
 	fmt.Println("\nСтарт...")
 
-	db, err := repository.ConnectPostgres(
-		"localhost",
-		"5432",
-		"postgres",
-		"postgres",
-		"go_crawler",
-		"disable")
+	err := initConfig()
 	if err != nil {
 		panic(err)
 	}
+
+	db, err := repository.ConnectPostgres(repository.DbConfig{
+		Host:     viper.GetString("db.host"),
+		Port:     viper.GetString("db.port"),
+		Name:     viper.GetString("db.name"),
+		Username: viper.GetString("db.username"),
+		Password: viper.GetString("db.password"),
+		SslMode:  viper.GetString("db.ssl_mode"),
+	})
+	if err != nil {
+		panic(err)
+	}
+
 	db.SetMaxOpenConns(2 * runtime.NumCPU())
+
 	defer func() {
 		err := db.Close()
 		if err != nil {
@@ -33,12 +42,14 @@ func main() {
 		}
 	}()
 
-	client, tor, err := repository.NewTorClient(
-		"D:/Tor Browser/Browser/TorBrowser/Tor/tor.exe",
-		"")
+	client, tor, err := repository.NewTorClient(repository.TorConfig{
+		ExePath: viper.GetString("tor.exe_path"),
+		DataDir: viper.GetString("tor.data_dir"),
+	})
 	if err != nil {
 		panic(err)
 	}
+
 	defer func() {
 		err := tor.Close()
 		if err != nil {
@@ -57,4 +68,10 @@ func main() {
 	<-quit
 
 	fmt.Println("Завершение работы...")
+}
+
+func initConfig() error {
+	viper.AddConfigPath("config")
+	viper.SetConfigName("app-config")
+	return viper.ReadInConfig()
 }

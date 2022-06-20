@@ -23,33 +23,15 @@ func NewTorCrawlerRepository(client *http.Client, tor *tor.Tor) *TorCrawlerRepos
 	return &TorCrawlerRepository{client: client, tor: tor}
 }
 
-func NewTorClient(torPath string, torDataDir string) (*http.Client, *tor.Tor, error) {
-	fmt.Println("Запуск Tor...")
-
-	t, err := tor.Start(nil, &tor.StartConf{ExePath: torPath})
-	if err != nil {
-		return nil, nil, err
-	}
-
-	dialer, err := t.Dialer(context.Background(), nil)
-	if err != nil {
-		return nil, nil, err
-	}
-
-	fmt.Println("Tor успешно запущен!")
-
-	return &http.Client{Transport: &http.Transport{DialContext: dialer.DialContext}}, t, nil
-}
-
 func (r *TorCrawlerRepository) DoIndexing(input <-chan src.Text) (map[string]int, error) {
 	out := make(chan string)
 
 	go func() {
-		wg := sync.WaitGroup{}
+		wg := &sync.WaitGroup{}
 
 		for text := range input {
 			wg.Add(1)
-			go indexText(text, &wg, out)
+			go indexText(text, wg, out)
 		}
 
 		wg.Wait()
@@ -85,10 +67,10 @@ func (r *TorCrawlerRepository) Load(url string) (<-chan src.Text, <-chan string,
 	}
 
 	go func() {
-		wg := sync.WaitGroup{}
+		wg := &sync.WaitGroup{}
 
 		wg.Add(1)
-		go getTextsAndUrls(parsed, outT, outU, &wg)
+		go getTextsAndUrls(parsed, outT, outU, wg)
 
 		wg.Wait()
 		close(outT)
@@ -106,52 +88,35 @@ func getTextsAndUrls(n *html.Node, text chan<- src.Text, url chan<- string, wg *
 		go getTextsAndUrls(c, text, url, wg)
 	}
 
-	if n.Type == html.ElementNode {
-		switch n.Data {
-		case "a":
-			for _, a := range n.Attr {
-				if a.Key == "href" {
-					wg.Add(1)
-					go func() {
-						url <- a.Val
-						wg.Done()
-					}()
-					break
-				}
-			}
-			fallthrough
-		case "div":
-			fallthrough
-		case "label":
-			fallthrough
-		case "button":
-			fallthrough
-		case "p":
-			fallthrough
-		case "h1":
-			fallthrough
-		case "h2":
-			fallthrough
-		case "h3":
-			fallthrough
-		case "h4":
-			fallthrough
-		case "h5":
-			fallthrough
-		case "h6":
-			var t bytes.Buffer
-			if n == nil || n.FirstChild == nil {
-				break
-			}
-			if err := html.Render(&t, n.FirstChild); err != nil {
-				break
-			}
-			wg.Add(1)
-			go func() {
-				text <- (src.Text)(t.String())
-				wg.Done()
-			}()
+	switch n.Type {
+	case html.ElementNode:
+		if n.Data != "a" {
+			break
 		}
+		for _, a := range n.Attr {
+			if a.Key == "href" {
+				wg.Add(1)
+				go func() {
+					url <- a.Val
+					wg.Done()
+				}()
+				break
+			}
+		}
+		fallthrough
+	case html.TextNode:
+		var t bytes.Buffer
+		if n == nil || n.FirstChild == nil {
+			break
+		}
+		if err := html.Render(&t, n.FirstChild); err != nil {
+			break
+		}
+		wg.Add(1)
+		go func() {
+			text <- (src.Text)(t.String())
+			wg.Done()
+		}()
 	}
 }
 
@@ -181,4 +146,22 @@ func indexWord(w string, wg *sync.WaitGroup, out chan<- string) {
 	}
 
 	out <- w
+}
+
+func NewTorClient(c TorConfig) (*http.Client, *tor.Tor, error) {
+	fmt.Println("Запуск Tor...")
+
+	t, err := tor.Start(nil, &tor.StartConf{ExePath: c.ExePath, DataDir: c.DataDir})
+	if err != nil {
+		return nil, nil, err
+	}
+
+	dialer, err := t.Dialer(context.Background(), nil)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	fmt.Println("Tor успешно запущен!")
+
+	return &http.Client{Transport: &http.Transport{DialContext: dialer.DialContext}}, t, nil
 }

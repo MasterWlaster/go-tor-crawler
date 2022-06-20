@@ -8,37 +8,73 @@ import (
 )
 
 type CrawlerService struct {
-	repository repository.Repository
+	repository *repository.Repository
 }
 
 func NewCrawlerService(repository *repository.Repository) *CrawlerService {
-	return &CrawlerService{repository: *repository}
+	return &CrawlerService{repository: repository}
 }
 
-func (s *CrawlerService) Crawl(url string, depth int) {
+func (s *CrawlerService) Crawl(url string, depth int) <-chan error {
+	errs := make(chan error)
+
+	wg := &sync.WaitGroup{}
+	wg.Add(1)
+
+	go s.crawl(url, depth, errs, wg)
+
+	go func() {
+		wg.Wait()
+		close(errs)
+	}()
+
+	return errs
+}
+
+func (s *CrawlerService) GetNotCrawledUrls() ([]string, error) {
+	urls, err := s.repository.Memory.GetUnusedUrls()
+	if err != nil {
+		return nil, err
+	}
+
+	return urls, nil
+}
+
+func (s *CrawlerService) GetNotCrawledUrlsWithLimit(limit int) ([]string, error) {
+	urls, err := s.repository.Memory.GetUnusedUrlsWithLimit(limit)
+	if err != nil {
+		return nil, err
+	}
+
+	return urls, nil
+}
+
+func (s *CrawlerService) crawl(url string, depth int, errOut chan<- error, wg *sync.WaitGroup) {
+	defer wg.Done()
+
 	isValid, err := s.repository.UrlValidator.IsValid(url)
 	if err != nil {
-		s.repository.Logger.Log(err)
+		errOut <- err
 		return
 	}
 	if !isValid {
-		s.repository.Logger.Log(fmt.Errorf("invalid url: %s", url))
+		errOut <- fmt.Errorf("invalid url: %s", url)
 		return
 	}
 
 	used, err := s.repository.Memory.UsedUrl(url)
 	if err != nil {
-		s.repository.Logger.Log(err)
+		errOut <- err
 		return
 	}
 	if used {
-		s.repository.Logger.Log(fmt.Errorf("already used url: %s", url))
+		errOut <- fmt.Errorf("already used url: %s", url)
 		return
 	}
 
 	err = s.repository.Memory.Remember(url)
 	if err != nil {
-		s.repository.Logger.Log(err)
+		errOut <- err
 		return
 	}
 
@@ -48,53 +84,37 @@ func (s *CrawlerService) Crawl(url string, depth int) {
 
 	data, urls, err := s.repository.Crawler.Load(url)
 	if err != nil {
-		s.repository.Logger.Log(err)
+		errOut <- err
 		return
 	}
 
-	wg := sync.WaitGroup{}
 	wg.Add(1)
 	go func() {
 		for u := range urls {
-			wg.Add(1)
 			if u == url {
-				wg.Done()
 				continue
 			}
+
 			u, err = s.repository.UrlValidator.Relative(u, url)
 			if err != nil {
-				wg.Done()
 				continue
 			}
-			go func(u string) {
-				s.Crawl(u, depth)
-				wg.Done()
-			}(u)
+
+			wg.Add(1)
+			go s.crawl(u, depth, errOut, wg)
 		}
 		wg.Done()
 	}()
 
-	defer wg.Wait()
-
 	indexes, err := s.repository.Crawler.DoIndexing(data)
 	if err != nil {
-		s.repository.Logger.Log(err)
+		errOut <- err
 		return
 	}
 
 	err = s.repository.Memory.Save(src.Page{Url: url, Indexes: indexes})
 	if err != nil {
-		s.repository.Logger.Log(err)
+		errOut <- err
 		return
 	}
-}
-
-func (s *CrawlerService) GetNotCrawledUrls() []string {
-	urls, err := s.repository.Memory.GetUnusedUrls()
-	if err != nil {
-		s.repository.Logger.Log(err)
-		return nil
-	}
-
-	return urls
 }
