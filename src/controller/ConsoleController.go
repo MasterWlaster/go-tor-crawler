@@ -24,12 +24,6 @@ func (c *ConsoleController) Run() {
 		c.wg.Wait()
 		fmt.Println("\nВвод:")
 
-		//_, err := fmt.Scanln(&src, &depth, &lim)
-		//if err != nil {
-		//	fmt.Println("Проверьте правильность ввода!")
-		//	continue
-		//}
-
 		_, err := fmt.Scan(&src, &depth)
 		if err != nil {
 			fmt.Println("Проверьте правильность ввода!")
