@@ -1,4 +1,4 @@
-# Darknet Crawler (в разработке)
+# Darknet Crawler
 ## ТЗ на Go разработчика
 
 - Чистая архитектура
